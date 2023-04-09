@@ -6,6 +6,7 @@ import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 error NftMarketplace__PriceMustAboveZero();
 error NftMarketplace__NotApprovedForMarketplace();
 error NftMarketplace__AlreadyListed(address nftAddress, uint256 tokenId);
+error NftMarketplace__NotTheNftOwner();
 
 contract NftMarketplace {
     struct Listing {
@@ -38,15 +39,35 @@ contract NftMarketplace {
         _;
     }
 
+    modifier isOwner(
+        address nftAddress,
+        uint256 tokenId,
+        address spender
+    ) {
+        IERC721 nft = IERC721(nftAddress);
+        if (nft.ownerOf(tokenId) != spender) {
+            revert NftMarketplace__NotTheNftOwner();
+        }
+        _;
+    }
+
     ////////////////////
     // Main functions //
     ////////////////////
+
+    /**
+     * @notice Method for listing NFTs on the marketplace
+     * @param nftAddress: address of the nft contract
+     * @param tokenId: the token ID of the NFT
+     * @param price: sale price of the listed NFT
+     * @dev the marketplace is not the holder of the NFT
+     */
 
     function listItem(
         address nftAddress,
         uint256 tokenId,
         uint256 price
-    ) external notListed(nftAddress, tokenId, msg.sender) {
+    ) external notListed(nftAddress, tokenId, msg.sender) isOwner(nftAddress, tokenId, msg.sender) {
         if (price <= 0) {
             revert NftMarketplace__PriceMustAboveZero();
         }
@@ -59,7 +80,7 @@ contract NftMarketplace {
     }
 }
 
-// 1. `listItem`: list NFTs on the marketplace
+// 1. `listItem`: list NFTs on the marketplace [v]
 // 2. `buyItem`: buy the NFTs
 // 3. `cancelItem`: Cancel a listing
 // 4. `updateListing`: update Price
