@@ -2,6 +2,7 @@
 pragma solidity ^0.8.7;
 
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
 error NftMarketplace__PriceMustAboveZero();
 error NftMarketplace__NotApprovedForMarketplace();
@@ -9,8 +10,10 @@ error NftMarketplace__AlreadyListed(address nftAddress, uint256 tokenId);
 error NftMarketplace__NotTheNftOwner();
 error NftMarketplace__NotListed(address nftAddress, uint256 tokenId);
 error NftMarketplace__PriceNotMet(address nftAddress, uint256 tokenId, uint256 price);
+error NftMarketplace__NoProceeds();
+error NftMarketplace__TransactionFailed();
 
-contract NftMarketplace {
+contract NftMarketplace is ReentrancyGuard {
     struct Listing {
         uint256 price;
         address seller;
@@ -108,7 +111,7 @@ contract NftMarketplace {
     function buyItem(
         address nftAddress,
         uint256 tokenId
-    ) external payable isListed(nftAddress, tokenId) {
+    ) external payable isListed(nftAddress, tokenId) nonReentrant {
         Listing memory listedItem = s_listings[nftAddress][tokenId];
         if (listedItem.price > msg.value) {
             revert NftMarketplace__PriceNotMet(nftAddress, tokenId, listedItem.price);
@@ -126,6 +129,42 @@ contract NftMarketplace {
     ) external isOwner(nftAddress, tokenId, msg.sender) isListed(nftAddress, tokenId) {
         delete (s_listings[nftAddress][tokenId]);
         emit ItemCanceled(msg.sender, nftAddress, tokenId);
+    }
+
+    function updateListing(
+        address nftAddress,
+        uint256 tokenId,
+        uint256 newPrice
+    ) external isListed(nftAddress, tokenId) isOwner(nftAddress, tokenId, msg.sender) nonReentrant {
+        s_listings[nftAddress][tokenId].price = newPrice;
+        emit ItemListed(msg.sender, nftAddress, tokenId, newPrice);
+    }
+
+    function withDrawProceeds() external {
+        uint256 proceeds = s_proceeds[msg.sender];
+        if (proceeds <= 0) {
+            revert NftMarketplace__NoProceeds();
+        }
+        s_proceeds[msg.sender] = 0;
+        (bool success, ) = payable(msg.sender).call{value: proceeds}("");
+        if (!success) {
+            revert NftMarketplace__TransactionFailed();
+        }
+    }
+
+    //////////////////////
+    // Getter functions //
+    //////////////////////
+
+    function getListing(
+        address nftAdddress,
+        uint256 tokenId
+    ) external view returns (Listing memory) {
+        return s_listings[nftAdddress][tokenId];
+    }
+
+    function getProceeds(address seller) external view returns (uint256) {
+        return s_proceeds[seller];
     }
 }
 
