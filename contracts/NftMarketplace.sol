@@ -22,7 +22,7 @@ contract NftMarketplace is ReentrancyGuard {
     event ItemListed(
         address indexed seller,
         address indexed nftAddress,
-        uint256 tokenId,
+        uint256 indexed tokenId,
         uint256 price
     );
     event ItemBought(
